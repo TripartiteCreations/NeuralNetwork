@@ -1,6 +1,6 @@
 # BIOLOGICALLY INSPIRED Neural Network
 
-**Exprerimental real-time spiking neural network
+*Exprerimental Real-Time Spiking Neural Network*
 
 ## FEATURES :
 - HEBBIAN LEARNING RULE
