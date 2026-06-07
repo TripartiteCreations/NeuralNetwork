@@ -38,8 +38,29 @@
     <ClInclude Include="GraphVisualizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="NeuralNetworkVisualizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="IMPROVEMENTS.md" />
+    <None Include="SURVIVAL_SYSTEM_FIXED.md" />
+    <None Include="SDL3_VISUALIZER_GUIDE.md" />
+    <None Include="VISUALIZER_QUICK_REFERENCE.md" />
+    <None Include="SETUP.md" />
+    <None Include="IMPLEMENTATION_SUMMARY.md" />
+    <None Include="VISUAL_ARCHITECTURE.md" />
+    <None Include="DOCUMENTATION_INDEX.md" />
+    <None Include="PROJECT_COMPLETION.md" />
+    <None Include="COMPLETION_SUMMARY.md" />
+    <None Include="DELIVERABLES.md" />
+    <None Include="START_HERE.md" />
+    <None Include="GRAPH_CLIPPING_AND_CLICK_FEATURE.md" />
+    <None Include="CLICK_AND_CLIPPING_QUICK_GUIDE.md" />
+    <None Include="FEATURE_COMPLETE_SUMMARY.md" />
+    <None Include="FINAL_IMPLEMENTATION_SUMMARY.md" />
+    <None Include="VISUAL_GUIDE_GRAPHICS.md" />
+    <None Include="ADAPTIVE_NEURAL_RECOVERY.md" />
+    <None Include="ADAPTIVE_RECOVERY_QUICK_GUIDE.md" />
   </ItemGroup>
 </Project>

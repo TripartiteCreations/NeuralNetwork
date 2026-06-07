@@ -1,4 +1,4 @@
-#include "Neurons.h"
+﻿#include "Neurons.h"
 
 static unsigned int neuron_counter = 0;
 
@@ -16,10 +16,10 @@ void Neurons::connectTo(Neurons* n2, float weight) {
     c->weight = weight;
     std::random_device rd;
 
-    // Create a Mersenne Twister engine, seeded by the random device
+
     std::mt19937 gen(rd());
 
-    // Define a uniform integer distribution for the desired range (e.g., 1 to 100)
+  
     std::uniform_real_distribution<> distrib(10.0, 100.0);
 
     c->delay = distrib(gen);
@@ -57,6 +57,12 @@ void Neurons::update(float t) {
     simulation_time = t;
     update_count++;
 
+    // Track recovery if neuron was dead
+    if (was_dead && isAlive()) {
+        frames_since_death++;
+        recovery_progress = std::min(recovery_progress + 0.01f, 1.0f);
+    }
+
     // Decay existing activity and input
     this->activity_record *= a_r_d;
     input *= decay;
@@ -73,9 +79,12 @@ void Neurons::update(float t) {
             this->activity_record += a_r;
             this->current_RT = t;
 
-            input += s;
+            // Apply adaptive normalization to incoming signal
+            float adapted_signal = applyAdaptiveNormalization(s);
+
+            input += adapted_signal;
             signals.erase(signals.begin() + i);
-            i--; // Adjust index after erase
+            i--;
         }
     }
 
@@ -109,6 +118,8 @@ void Neurons::propagate() {
     
 }
 
+
+
 void Neurons::STDP(Connection* c) {
     Neurons* from = c->from;
     Neurons* to = c->to;
@@ -118,10 +129,11 @@ void Neurons::STDP(Connection* c) {
 
     if (t_signal_T == 0) spike_diff = f_signal_T;
 
-    // More accurate STDP curve with proper exponential decay
+    
     float tau = 20.0f; // Time constant for STDP
-    float A_pos = 0.01f; // Positive learning rate
-    float A_neg = 0.01f; // Negative learning rate
+    float A_pos = 0.001f; // Positive learning rate
+    float A_neg = 0.001f; // Negative learning rate 
+
 
     if (spike_diff >= 0) {
         // Post-synaptic neuron fires after pre-synaptic
@@ -138,6 +150,8 @@ void Neurons::STDP(Connection* c) {
 
     c->weight += changes;
 }
+
+
 
 
 void Neurons::Hebbian(Connection* c) {
@@ -179,50 +193,126 @@ bool Neurons::isAlive() const {
     return health > 0.0f;
 }
 
-float Neurons::calculateSignalCoherence() {
-    // Measure coherence based on activity patterns and signal consistency
-    // High coherence = structured signals, Low coherence = chaos
-
-    if (update_count < 10) return 0.5f; // Neutral coherence during initial phase
-
-    // Coherence based on activity record and signal consistency
-    float activity_coherence = std::min(activity_record, 1.0f);
-
-    // Measure deviation of input signals (lower deviation = more structured)
-    float input_variance = std::abs(input); // Simplified: measure of signal stability
-    float variance_coherence = 1.0f / (1.0f + input_variance);
-
-    // Combine metrics
-    float total_coherence = (activity_coherence * 0.6f + variance_coherence * 0.4f);
-
-    return std::min(std::max(total_coherence, 0.0f), 1.0f);
+float Neurons::getSignalSensitivity() const {
+    return signal_sensitivity;
 }
 
+float Neurons::getDeathCauseType() const {
+    return death_cause;
+}
+
+// Adaptive signal normalization based on what caused the neuron's death
+// Adaptive signal normalization (Homeostasis)
+float Neurons::applyAdaptiveNormalization(float incoming_signal) {
+    // Proactively regulate the signal based on current sensitivity.
+    // If sensitivity > 1.0, it amplifies (neuron is understimulated).
+    // If sensitivity < 1.0, it dampens (neuron is overstimulated).
+    return incoming_signal * signal_sensitivity;
+}
+
+float Neurons::calculateSignalCoherence() {
+    // Measure coherence based on actual signal reception and activity level
+    // Neurons need signals to survive, but too much noise (chaos) kills them
+
+    // Track how many signals this neuron received
+    int received_signals = signals.size();
+
+    // Calculate activity level from input magnitude
+    float activity_level = std::abs(input);
+
+    // Check if neuron is in "Goldilocks zone" - not too active, not too silent
+    float activity_score = 1.0f;
+
+    if (activity_level < ACTIVITY_OPTIMAL_MIN) {
+        // Too silent - neuron is not receiving enough signal
+        activity_score = activity_level / ACTIVITY_OPTIMAL_MIN;
+    } else if (activity_level > ACTIVITY_OPTIMAL_MAX) {
+        // Too active - chaotic input, excessive stimulation
+        activity_score = 1.0f - ((activity_level - ACTIVITY_OPTIMAL_MAX) / 2.0f);
+        activity_score = std::max(activity_score, 0.0f);
+    }
+    // else: in optimal range, score stays at 1.0f
+
+    // Detection: are signals being received at all?
+    float signal_received_score = (received_signals > 0) ? 1.0f : 0.0f;
+
+    // Combine scores: need both signal reception and optimal activity level
+    float coherence = (activity_score * 0.7f + signal_received_score * 0.3f);
+
+    return std::min(std::max(coherence, 0.0f), 1.0f);
+}
+
+
 void Neurons::updateHealth(float coherence) {
-    // Update signal consistency tracking
     signal_consistency = coherence;
 
-    if (coherence > COHERENCE_THRESHOLD) {
-        // Structured signal - neuron thrives
-        health = std::min(health + HEALTH_GAIN_STRUCTURED, 1.0f);
-        chaos_accumulation = std::max(chaos_accumulation - 0.01f, 0.0f);
-    } else {
-        // Chaotic signal - neuron decays
-        health = std::max(health - HEALTH_LOSS_CHAOS, 0.0f);
-        chaos_accumulation = std::min(chaos_accumulation + 0.02f, 1.0f);
-    }
+    // Calculate current activity level
+    float activity_level = std::abs(input);
 
-    // Apply evolutionary pressure based on connection strength
-    float avg_weight = 0.0f;
-    if (!connect.empty()) {
-        for (const auto& c : connect) {
-            avg_weight += std::abs(c->weight);
+    // Are we getting any stimulation at all?
+    bool receiving_signals = (signals.size() > 0) || (activity_level > 0.0f);
+
+    // --- 1. PROACTIVE REGULATION (HOMEOSTASIS) ---
+    // The neuron constantly tries to keep itself in the Goldilocks zone
+    if (receiving_signals) {
+        if (activity_level > ACTIVITY_OPTIMAL_MAX) {
+            // Overstimulated: Regulate by dampening incoming signals
+            signal_sensitivity = std::max(signal_sensitivity - SENSITIVITY_RECOVERY_RATE, MIN_SENSITIVITY);
         }
-        avg_weight /= connect.size();
+        else if (activity_level < ACTIVITY_OPTIMAL_MIN) {
+            // Understimulated: Regulate by amplifying incoming signals
+            signal_sensitivity = std::min(signal_sensitivity + SENSITIVITY_RECOVERY_RATE, MAX_SENSITIVITY);
+        }
+        else {
+            // Optimal: Gradually drift sensitivity back to normal (1.0)
+            if (signal_sensitivity > 1.01f) signal_sensitivity -= SENSITIVITY_RECOVERY_RATE * 0.5f;
+            else if (signal_sensitivity < 0.99f) signal_sensitivity += SENSITIVITY_RECOVERY_RATE * 0.5f;
+            else signal_sensitivity = 1.0f;
+        }
     }
 
-    // Neurons with weak connections lose health faster
-    if (avg_weight < 0.1f && !connect.empty()) {
-        health *= 0.98f;
+    // --- 2. SURVIVAL & DEATH MECHANICS ---
+    if (!isAlive()) {
+        return; // The neuron is dead, stop updating health.
+    }
+
+    float extreme_chaos_threshold = ACTIVITY_OPTIMAL_MAX * 3.0f;
+
+    if (!receiving_signals && activity_level == 0.0f) {
+   
+        health = std::max(health - HEALTH_LOSS_SILENT, 0.0f);
+        if (health <= 0.0f) {
+            death_cause = -1.0f;
+            std::cout << " Neuron " << neuron_id << " DIED from TOTAL SILENCE\n";
+        }
+    }
+    else if (activity_level > extreme_chaos_threshold) {
+        // FATAL: Extreme Chaos (so high that dampening couldn't save it)
+        health = std::max(health - HEALTH_LOSS_CHAOS, 0.0f);
+        chaos_accumulation = std::min(chaos_accumulation + 0.05f, 1.0f);
+
+        if (health <= 0.0f) {
+            death_cause = 1.0f;
+            std::cout << " Neuron " << neuron_id << " DIED from EXTREME CHAOS\n";
+        }
+    }
+    else {
+        // SURVIVAL: Neuron is either in the optimal range or successfully regulating
+        health = std::min(health + HEALTH_GAIN_OPTIMAL, 1.0f);
+        chaos_accumulation = std::max(chaos_accumulation - 0.02f, 0.0f);
+    }
+
+    // Penalty for neurons with no outgoing connections (dead weight)
+    if (connect.empty() && update_count > 20) {
+        health *= 0.99f;
+    }
+
+    // Debug: log health changes periodically
+    if (update_count % 100 == 0 && update_count > 0) {
+        std::cout << "Neuron " << neuron_id
+            << " | Health: " << health
+            << " | Activity: " << activity_level
+            << " | Sensitivity: " << signal_sensitivity
+            << " | Status: " << (isAlive() ? "ALIVE" : "DEAD") << std::endl;
     }
 }

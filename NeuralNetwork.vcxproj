@@ -149,12 +149,31 @@
   <ItemGroup>
     <ClInclude Include="Connection.h" />
     <ClInclude Include="GraphVisualizer.h" />
+    <ClInclude Include="NeuralNetworkVisualizer.h" />
     <ClInclude Include="Neurons.h" />
     <ClInclude Include="Signal.h" />
     <ClInclude Include="utility.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ADAPTIVE_NEURAL_RECOVERY.md" />
+    <None Include="ADAPTIVE_RECOVERY_QUICK_GUIDE.md" />
+    <None Include="CLICK_AND_CLIPPING_QUICK_GUIDE.md" />
+    <None Include="COMPLETION_SUMMARY.md" />
+    <None Include="DELIVERABLES.md" />
+    <None Include="DOCUMENTATION_INDEX.md" />
+    <None Include="FEATURE_COMPLETE_SUMMARY.md" />
+    <None Include="FINAL_IMPLEMENTATION_SUMMARY.md" />
+    <None Include="GRAPH_CLIPPING_AND_CLICK_FEATURE.md" />
+    <None Include="IMPLEMENTATION_SUMMARY.md" />
     <None Include="IMPROVEMENTS.md" />
+    <None Include="PROJECT_COMPLETION.md" />
+    <None Include="SDL3_VISUALIZER_GUIDE.md" />
+    <None Include="SETUP.md" />
+    <None Include="START_HERE.md" />
+    <None Include="SURVIVAL_SYSTEM_FIXED.md" />
+    <None Include="VISUALIZER_QUICK_REFERENCE.md" />
+    <None Include="VISUAL_ARCHITECTURE.md" />
+    <None Include="VISUAL_GUIDE_GRAPHICS.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
