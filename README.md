@@ -17,4 +17,4 @@
 - ADD REWARD SYSTEM
 
 ## DEMO
-![Neural Network Activity](example/demo.mp4)
+![Neural Network Activity](example/demo.gif)
