@@ -1,3 +1,16 @@
-# ?? Neural Network Visualizer with SDL3
+# BIOLOGICALLY INSPIRED Neural Network
 
-A beautiful, real-time neural network simulator with advanced visualization, featuring neurons that survive in structured signals and gradually die in chaos.
+Exprerimental real-time spiking neural network
+
+## FEATURES :
+- HEBBIAN LEARNING RULE
+- STDP (SPIKE-TIMING DEPENDENT PLASTICITY)
+- HEALTH MODULATION
+
+## FUTURE IMPROVEMENTS :
+- ADD REWARD SYSTEM
+- IMPROVE HEALTH MODULATION
+
+## FUTURE PLANS :
+- ADD PATTERN BASED INPUT/OUTPUT mapping system (using seed)
+- Explore evolutionary system
