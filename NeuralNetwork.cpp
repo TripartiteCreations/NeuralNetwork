@@ -9,7 +9,7 @@
 
 int main()
 {
-    std::cout << "=== Neural Network with Survival Mechanism (SDL3 Visualizer) ===\n";
+    std::cout << "=== Spiking Neural Network ===\n";
     std::cout << "Neurons survive in Goldilocks zone (moderate activity + constant signals)\n";
     std::cout << "They die from: isolation (no signals) OR chaos (too much noise)\n\n";
 
@@ -86,18 +86,18 @@ int main()
         // === Send signals based on time ===
         // Optimal zone: moderate, consistent signals (every 10 frames)
         if (frame_count % 10 == 0) {
-           // neurons[0].sendSignal(0.3f, 0.5f);  // Moderate signal
+            neurons[0].sendSignal(0.3f, 0.5f);  // Moderate signal
         }
 
 
         // Add occasional spike (still within acceptable range)
         if (frame_count % 25 == 0) {
-          ///neurons[0].sendSignal(1, 2);
+            neurons[0].sendSignal(1, 2);
         }
 
-        // Optional: uncomment to test chaotic behavior (neurons will die)
+        // to test chaotic behavior (neurons will die)
         if (frame_count % 3 == 0) {
-             //neurons[0].sendSignal(2.0f, 1); // Excessive noise - kills neurons
+            neurons[0].sendSignal(2.0f, 1); // Excessive noise - kills neurons
         }
 
         // Update all neurons
@@ -139,7 +139,7 @@ int main()
         }
     }
 
-    std::cout << "\n=== Final Status ===\n";
+    std::cout << "\n=== Final Status ==\n";
     int alive_count = 0;
     for (int i = 0; i < neurons.size(); ++i) {
         std::cout << "Neuron " << i << " - " << (neurons[i].isAlive() ? "ALIVE" : "DEAD")
