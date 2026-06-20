@@ -16,17 +16,18 @@ struct Color {
         : r(r), g(g), b(b), a(a) {}
 };
 
+
 // Neuron visualization data
 struct NeuronVisual {
     float x, y;                          
     float radius;                       
     std::queue<float> activity_history;  
     std::size_t max_history;            
-    float health;                    
+                   
     bool alive;                         
 
     NeuronVisual(float x, float y, float radius, std::size_t history_size = 50)
-        : x(x), y(y), radius(radius), max_history(history_size), health(0.5f), alive(true) {}
+        : x(x), y(y), radius(radius), max_history(history_size) {}
 
     void addActivity(float activity) {
         activity_history.push(activity);
@@ -35,9 +36,6 @@ struct NeuronVisual {
         }
     }
 
-    void setHealth(float h) {
-        health = std::max(0.0f, std::min(1.0f, h));
-    }
 };
 
 // Connection visualization data
@@ -121,12 +119,11 @@ public:
         }
     }
 
-    // Update neuron activity (called every frame)
-    void updateNeuronActivity(std::size_t index, float activity, float health, bool alive) {
+    // Update neuron activity 
+    void updateNeuronActivity(std::size_t index, float activity) {
         if (index < neurons.size()) {
             neurons[index].addActivity(activity);
-            neurons[index].setHealth(health);
-            neurons[index].alive = alive;
+            
         }
     }
 
@@ -247,26 +244,15 @@ private:
     void drawNeuron(const NeuronVisual& neuron) {
         // Determine color based on health
         Color circle_color;
-        if (!neuron.alive) {
-            circle_color = Color(100, 100, 100, 200);  // Gray for dead
-        } else if (neuron.health > 0.7f) {
-            circle_color = Color(0, 255, 0, 255);      // Green for healthy
-        } else if (neuron.health > 0.4f) {
-            circle_color = Color(255, 200, 0, 255);    // Yellow for medium
-        } else {
-            circle_color = Color(255, 100, 0, 255);    // Orange for weak
-        }
-
+        
         // Draw filled circle
         drawFilledCircle(neuron.x, neuron.y, neuron.radius, circle_color);
 
         // Draw border
         drawCircle(neuron.x, neuron.y, neuron.radius, Color(255, 255, 255, 255), 2.0f);
 
-        // Draw health indicator ring
-        float health_angle = 2.0f * PI * neuron.health;
-        drawArc(neuron.x, neuron.y, neuron.radius + 5.0f, 0, health_angle,
-               Color(0, 200, 255, 200), 3.0f);
+      
+        
     }
 
     // Draw activity waveform graph above neuron
