@@ -10,5 +10,8 @@ public :
         }
         return val;
     }
+    float logistic_sigmoid(float x, float k = 1.0f, float x0 = 0.0f, float L = 1.0f) {
+        return L / (1.0f + std::exp(-k * (x - x0)));
+	}
 };
 

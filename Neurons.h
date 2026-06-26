@@ -47,18 +47,27 @@ public:
 
 private:
     void STDP(Connection* c);
-    void Hebbian(Connection* c);
+	void applySTDP();
+	void SpikeHandler(float t);
     void RewardHandler(float reward, float coherence);
     float calculateSignalCoherence();
 
     float applyAdaptiveNormalization(float incoming_signal);  // Adapt signal based on death cause
 
     float input = 0;
+	float neuron_availability_timer = 0.6; // timer for neuron availability decay
+	float neuron_availability = neuron_availability_timer; // neuron availability for firing
+	float n_availability_decay = 0.01f; // neuron availability decay rate
+
     float base_amptitude = 0.8;
 	float reward = 0;
     float r_r = 0.01f; //reward rate
+	float signal_decay = 0.01f; // incoming signal decay
+    
     float excitability = 1; 
     float ex_decay = 0.01f;
+
+	
     
     float simulation_time = 0;
     float current_RT = 0; // current receiving time of the current neuron
@@ -68,7 +77,7 @@ private:
     float time_decay = 0.1;
     float F_T = 0.3f; //firing threshold
 
-    float a_r_d = 0.9; //activity record decay
+    float a_r_d = 0.9999; //activity record decay
     float a_r = 0.1; // activity record increment per activation
     float activity_record = 0;
 
@@ -77,7 +86,8 @@ private:
     float chaos_accumulation = 0.0f; // Accumulates chaos (noise)
     unsigned int update_count = 0; // Number of updates performed
     
-
+	float target_activity = 0.6f; // Target activity level for optimal neuron function
+	float learning_rate = 0.01f; // Learning rate for STDP adjustments
     static constexpr float ACTIVITY_OPTIMAL_MIN = 0.2f; // Minimum optimal activity
     static constexpr float ACTIVITY_OPTIMAL_MAX = 0.8f; // Maximum optimal activity
     static constexpr float CHAOS_THRESHOLD = 0.6f; // Threshold for chaos detection (high variance)
