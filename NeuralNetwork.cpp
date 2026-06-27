@@ -4,6 +4,7 @@
 
 #include "NeuralNetworkVisualizer.h"
 #include "Neurons.h"
+#include "GeneticAlgorithm.h"
 
 
 
@@ -19,7 +20,7 @@ int main()
 
     float time = 0;
     std::vector<Neurons> neurons;
-    int num_neurons = 5;
+    int num_neurons = 4;
 
     // Create neurons
     for (int i = 0; i < num_neurons; ++i) {
@@ -31,23 +32,17 @@ int main()
 
 
     // Create network topology
+
     neurons[0].connectTo(&neurons[1], 0.5);
     visualizer.addConnection(0, 1, 0.5);
 
     neurons[1].connectTo(&neurons[2], 0.5);
     visualizer.addConnection(1, 2, 0.5);
-
-    neurons[1].connectTo(&neurons[4], 0.5);
-    visualizer.addConnection(1, 4, 0.5);
-
-    neurons[0].connectTo(&neurons[4], 0.5);
-    visualizer.addConnection(0, 4, 0.5);
-
-    neurons[4].connectTo(&neurons[3], 0.5);
-    visualizer.addConnection(4, 3, 0.5);
     neurons[2].connectTo(&neurons[3], 0.5);
     visualizer.addConnection(2, 3, 0.5);
-
+   
+    neurons[1].connectTo(&neurons[3], 0.5);
+    visualizer.addConnection(1, 3, 0.5);
   
 
     int frame_count = 0;
@@ -70,7 +65,7 @@ int main()
 
                     if (neuron_idx >= 0 && neuron_idx < static_cast<int>(neurons.size())) {
                         // Send signal to clicked neuron
-                        neurons[neuron_idx].sendSignal(0.6f, 1);
+                        neurons[neuron_idx].sendSignal(1, 1);
 
                         std::cout << "Clicked Neuron " << neuron_idx 
                                   << " - Sending signal 0.6f\n";
@@ -85,8 +80,8 @@ int main()
 
         // === Send signals based on time ===
         // Optimal zone: moderate, consistent signals (every 10 frames)
-        if (frame_count % 10 == 0) {
-            //neurons[0].sendSignal(0.3f, 0.5f);  // Moderate signal
+        if (frame_count % 100 == 0) {
+            //neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
 
 

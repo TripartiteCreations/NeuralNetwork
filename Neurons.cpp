@@ -55,6 +55,7 @@ int Neurons::find_connection(Neurons* from, Neurons* to) {
 
 
 void Neurons::update(float t) {
+	float dt = t - simulation_time;
     simulation_time = t;
     update_count++;
 
@@ -62,21 +63,28 @@ void Neurons::update(float t) {
     this->activity_record *= a_r_d;
     this->excitability += ex_decay * (1.0f-excitability);
 	this->neuron_availability *= n_availability_decay;
+	this->reward *= reward_decay;
+	this->trace_firing *= util.exponantial_decay(dt, trace_decay); // Decay firing trace
     input *= decay;
 
     float s = 0;
     
-   
+    propagate();
 	SpikeHandler(t);
-
+    applySTDP();
     // Calculate signal coherence before propagating
 	calculateSignalCoherence();
     RewardHandler(reward, activity_record);
-    F_T = (1.0 - target_activity) + 1.0f * (0.5 - (1-excitability) - (1 - activity_record));
-	F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
-	std::cout << "Neuron " << neuron_id << " Firing Threshold: " << F_T << " activity: " << activity_record << "Neuron Availability: " << neuron_availability << std::endl;
-    
-    propagate();
+   /// F_T = (1.0 - target_activity) + 1.0f * (0.5 - (1-excitability) - (1 - activity_record));
+    F_T = (target_activity) + 1 * (0.5f - (1 - excitability) - (1 - (util.logistic_sigmoid(activity_record, (10), target_activity)))) + ((activity_record - target_activity) + std::abs(activity_record - target_activity)) / 2;
+	chaos_accumulation += std::tanh((activity_record - target_activity)) * chaos_scale;
+	chaos_accumulation = util.clamp(chaos_accumulation, -1.0f, 1.0f); 
+    excitability += chaos_accumulation;
+	excitability = util.clamp(excitability, 0.1f, 2.0f);
+    F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
+	//std::cout << "Neuron " << neuron_id << " Firing Threshold: " << F_T << " activity: " << activity_record << " Neuron Availability: " << neuron_availability << " excitability: " << excitability << " chaos: " << chaos_accumulation << std::endl;
+  
+   
 }
 
 
@@ -107,34 +115,23 @@ void Neurons::propagate() {
 void Neurons::STDP(Connection* c) {
     Neurons* from = c->from;
     Neurons* to = c->to;
-    float f_signal_T = from->current_RT;
-    float t_signal_T = to->current_RT;
-    float spike_diff = t_signal_T - f_signal_T;
+    float f_signal_T = from->trace_firing;
+    float t_signal_T = to->trace_firing;
+  
 
-    if (t_signal_T == 0) spike_diff = f_signal_T;
 
-    
-    float tau = 20.0f; // Time constant for STDP
-    float A_pos = learning_rate; // Positive learning rate
-    float A_neg = learning_rate; // Negative learning rate 
-
-    if (f_signal_T == 0 && t_signal_T == 0) {
-        return;
-    }
-    if (spike_diff >= 0) {
-        // Post-synaptic neuron fires after pre-synaptic
-        changes = A_pos * std::exp(-spike_diff / tau);
-    } else {
-        // Post-synaptic neuron fires before pre-synaptic
-        changes = -A_neg * std::exp(spike_diff / tau);
-    }
    
+    float changes = 0;
+    changes += learning_rate * t_signal_T;
+    changes -= learning_rate * f_signal_T;
     if (changes != 0) {
         std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
-                  << " spike_diff: " << spike_diff << " weight_change: " << changes << std::endl;
+                 << " weight_change: " << changes << " pre synaptic: " << f_signal_T << " post synaptic: " << t_signal_T << std::endl;
     }
 
     c->weight += changes;
+    
+	
 }
 
 void Neurons::applySTDP() {
@@ -162,25 +159,27 @@ void Neurons::SpikeHandler(float t) {
 
 
     if (!signals_to_remove.empty()) {
-        std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
+    //    std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
         fire = firing_threshold(active_signal_sum, this);
     }
 
    
     if (fire && neuron_availability == 0) {
+		
         this->current_RT = t;
+		std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
+		trace_firing += 1.f; // Update firing trace
         neuron_availability = neuron_availability_timer; // Reset availability after firing
-		applySTDP();
-        input += 0.6;
-
+        input += 1;
+       
 
         for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
             signals.erase(signals.begin() + signals_to_remove[i]);
         }
     } else {
         for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
-            signals[i].get()->sender->input *= signal_decay;
-            if (signals[i].get()->sender->input == 0) {
+            signals.at(i)->signal *= signal_decay;
+            if (signals.at(i)->signal == 0) {
                 signals.erase(signals.begin() + signals_to_remove[i]);
             }
         }
@@ -252,4 +251,11 @@ float Neurons::calculateSignalCoherence() {
     return std::min(std::max(coherence, 0.0f), 1.0f);
 }
 
+void Neurons::createConnection() {
+    for (auto& c : connect) {
+        if (this == c->to) {
+            std::cout << "Neuron " << neuron_id << " is connected to Neuron " << c->to->neuron_id << std::endl;
+        }
+    }
+}
  
