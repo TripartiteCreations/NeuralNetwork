@@ -83,7 +83,8 @@ void Neurons::update(float t) {
 	excitability = util.clamp(excitability, 0.1f, 2.0f);
     F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
 	//std::cout << "Neuron " << neuron_id << " Firing Threshold: " << F_T << " activity: " << activity_record << " Neuron Availability: " << neuron_availability << " excitability: " << excitability << " chaos: " << chaos_accumulation << std::endl;
-  
+    if (trace_firing > 0)
+    std::cout << "Neuron " << neuron_id << " trace_firing " << trace_firing << std::endl;
    
 }
 
@@ -122,10 +123,26 @@ void Neurons::STDP(Connection* c) {
 
    
     float changes = 0;
-    changes += learning_rate * t_signal_T;
-    changes -= learning_rate * f_signal_T;
+    if (t_signal_T < 1e-4f) {
+        to->trace_firing = 0;
+        t_signal_T = 0;
+    }
+
+    if (f_signal_T < 1e-4f) {
+        from->trace_firing = 0;
+        f_signal_T = 0;
+    }
+
+    float d = f_signal_T - t_signal_T;
+    float balance = -99;
+    float coincidence = expf(-50.0f * d * d);
+
+    changes =
+        (f_signal_T * t_signal_T) *
+        (tanhf(balance * d) + expf(-(d * d)) + coincidence) * learning_rate;
+   
     if (changes != 0) {
-        std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
+       std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
                  << " weight_change: " << changes << " pre synaptic: " << f_signal_T << " post synaptic: " << t_signal_T << std::endl;
     }
 

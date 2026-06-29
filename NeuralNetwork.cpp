@@ -20,7 +20,7 @@ int main()
 
     float time = 0;
     std::vector<Neurons> neurons;
-    int num_neurons = 4;
+    int num_neurons = 2;
 
     // Create neurons
     for (int i = 0; i < num_neurons; ++i) {
@@ -36,13 +36,13 @@ int main()
     neurons[0].connectTo(&neurons[1], 0.5);
     visualizer.addConnection(0, 1, 0.5);
 
-    neurons[1].connectTo(&neurons[2], 0.5);
-    visualizer.addConnection(1, 2, 0.5);
-    neurons[2].connectTo(&neurons[3], 0.5);
-    visualizer.addConnection(2, 3, 0.5);
+   // neurons[1].connectTo(&neurons[2], 0.5);
+   // visualizer.addConnection(1, 2, 0.5);
+   // neurons[2].connectTo(&neurons[3], 0.5);
+   // visualizer.addConnection(2, 3, 0.5);
    
-    neurons[1].connectTo(&neurons[3], 0.5);
-    visualizer.addConnection(1, 3, 0.5);
+   // neurons[1].connectTo(&neurons[3], 0.5);
+   // visualizer.addConnection(1, 3, 0.5);
   
 
     int frame_count = 0;
@@ -78,10 +78,12 @@ int main()
         frame_count++;
 
 
-        // === Send signals based on time ===
-        // Optimal zone: moderate, consistent signals (every 10 frames)
-        if (frame_count % 100 == 0) {
-            //neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
+       // test stdp pos fire before pre
+        if (frame_count % 200 == 0) {
+            neurons[1].sendSignal(1.0f, 0.5f);  // Moderate signal
+        }
+        if (frame_count % 120 == 0) {
+            neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
 
 

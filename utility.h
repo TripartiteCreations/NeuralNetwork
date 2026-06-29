@@ -1,4 +1,5 @@
 #pragma once
+#include <math.h>
 class utility {
 public :
     float clamp(float val, float low, float up) {
@@ -11,10 +12,11 @@ public :
         return val;
     }
     float logistic_sigmoid(float x, float k = 1.0f, float x0 = 0.0f, float L = 1.0f) {
-        return L / (1.0f + std::exp(-k * (x - x0)));
+        return L / (1.0f + std::expf(-k * (x - x0)));
 	}
     float exponantial_decay(float dt, float tau) {
-        return std::exp(-dt / tau);
+        return std::expf(-dt / tau);
 	}
+
 };
 

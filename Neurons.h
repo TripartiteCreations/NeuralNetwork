@@ -96,7 +96,7 @@ private:
 	float chaos_scale = 0.001f; // Scale for chaos accumulation
 
 	float trace_firing = 0.0f; // Tracks recent firing events for STDP
-	float trace_decay = 0.999f; // Decay rate for firing trace
+	float trace_decay = 20; // Decay rate for firing trace
     static constexpr float ACTIVITY_OPTIMAL_MIN = 0.2f; // Minimum optimal activity
     static constexpr float ACTIVITY_OPTIMAL_MAX = 0.8f; // Maximum optimal activity
     static constexpr float CHAOS_THRESHOLD = 0.6f; // Threshold for chaos detection (high variance)
