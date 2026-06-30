@@ -86,27 +86,27 @@ int main()
         // === Send signals based on time ===
         // Optimal zone: moderate, consistent signals (every 10 frames)
         if (frame_count % 10 == 0) {
-            neurons[0].sendSignal(0.3f, 0.5f);  // Moderate signal
+            //neurons[0].sendSignal(0.3f, 0.5f);  // Moderate signal
         }
 
 
         // Add occasional spike (still within acceptable range)
         if (frame_count % 25 == 0) {
-            neurons[0].sendSignal(1, 2);
+            //neurons[0].sendSignal(1, 2);
         }
 
         // to test chaotic behavior (neurons will die)
         if (frame_count % 3 == 0) {
-            neurons[0].sendSignal(2.0f, 1); // Excessive noise - kills neurons
+            //neurons[0].sendSignal(2.0f, 1); // Excessive noise - kills neurons
         }
 
         // Update all neurons
         for (int i = 0; i < neurons.size(); ++i) {
-            if (neurons[i].isAlive()) {
+           
                 neurons[i].update(time);
 
                 // Update visualizer with neuron data
-                visualizer.updateNeuronActivity(i, neurons[i].getInput(), neurons[i].getHealth(), neurons[i].isAlive());
+                visualizer.updateNeuronActivity(i, neurons[i].getInput());
 
                 // Update connection weights
                 auto& connections = neurons[i].connect;
@@ -119,34 +119,15 @@ int main()
                         }
                     }
                 }
-            }
         }
 
         // Render
         visualizer.render();
 
-        // Status update every 100 frames
-        if (frame_count % 100 == 0) {
-            std::cout << "\n--- Time: " << frame_count << " ---\n";
-            for (int i = 0; i < neurons.size(); ++i) {
-                if (neurons[i].isAlive()) {
-                    std::cout << "Neuron " << i << " ALIVE - Health: " << neurons[i].getHealth()
-                              << " Input: " << neurons[i].getInput() << std::endl;
-                } else {
-                    std::cout << "Neuron " << i << " DEAD\n";
-                }
-            }
-        }
+
     }
 
-    std::cout << "\n=== Final Status ==\n";
-    int alive_count = 0;
-    for (int i = 0; i < neurons.size(); ++i) {
-        std::cout << "Neuron " << i << " - " << (neurons[i].isAlive() ? "ALIVE" : "DEAD")
-                  << " | Final Health: " << neurons[i].getHealth() << std::endl;
-        if (neurons[i].isAlive()) alive_count++;
-    }
-    std::cout << "Neurons survived: " << alive_count << "/" << num_neurons << std::endl;
-
+  
+    
     return 0;
 }
