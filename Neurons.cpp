@@ -1,15 +1,15 @@
 ﻿#include "Neurons.h"
-
 static unsigned int neuron_counter = 0;
 
 Neurons::Neurons() {
     neuron_id = neuron_counter++;
+
 }
 
 
 
 void Neurons::connectTo(Neurons* n2, float weight) {
-   
+
     auto c = std::make_unique<Connection>();
     c->to = n2;
     c->from = this;
@@ -19,7 +19,7 @@ void Neurons::connectTo(Neurons* n2, float weight) {
 
     std::mt19937 gen(rd());
 
-  
+
     std::uniform_real_distribution<> distrib(10.0, 100.0);
 
     c->delay = distrib(gen);
@@ -55,37 +55,40 @@ int Neurons::find_connection(Neurons* from, Neurons* to) {
 
 
 void Neurons::update(float t) {
-	float dt = t - simulation_time;
+    dt = t - simulation_time;
     simulation_time = t;
     update_count++;
 
     // Decay existing activity and input
-    this->activity_record *= a_r_d;
-    this->excitability += ex_decay * (1.0f-excitability);
-	this->neuron_availability *= n_availability_decay;
-	this->reward *= reward_decay;
-	this->trace_firing *= util.exponantial_decay(dt, trace_decay); // Decay firing trace
-    input *= decay;
+    this->activity_record *= util.exponantial_decay(dt, a_r_d);
+    this->excitability += util.exponantial_decay(dt, ex_decay) * (1.0f - excitability);
+    this->neuron_availability *= util.exponantial_decay(dt, n_availability_decay);
+    this->reward *= util.exponantial_decay(dt, reward_decay);
+    this->trace_firing *= util.exponantial_decay(dt, trace_decay); // Decay firing trace
+    this->chaos_decay *= util.exponantial_decay(dt, chaos_decay);
+    input *= util.exponantial_decay(dt, decay);
+
 
     float s = 0;
-    
+
+
+    SpikeHandler(t);
     propagate();
-	SpikeHandler(t);
     applySTDP();
     // Calculate signal coherence before propagating
-	calculateSignalCoherence();
+    calculateSignalCoherence();
     RewardHandler(reward, activity_record);
-   /// F_T = (1.0 - target_activity) + 1.0f * (0.5 - (1-excitability) - (1 - activity_record));
-    F_T = (target_activity) + 1 * (0.5f - (1 - excitability) - (1 - (util.logistic_sigmoid(activity_record, (10), target_activity)))) + ((activity_record - target_activity) + std::abs(activity_record - target_activity)) / 2;
-	chaos_accumulation += std::tanh((activity_record - target_activity)) * chaos_scale;
-	chaos_accumulation = util.clamp(chaos_accumulation, -1.0f, 1.0f); 
+    /// F_T = (1.0 - target_activity) + 1.0f * (0.5 - (1-excitability) - (1 - activity_record));
+    F_T = (target_activity)+1 * (0.5f - (1 - excitability) - (1 - (util.logistic_sigmoid(activity_record, (10), target_activity)))) + ((activity_record - target_activity) + std::abs(activity_record - target_activity)) / 2;
+    chaos_accumulation += util.logistic_sigmoid(activity_record, -((activity_record - CHAOS_THRESHOLD) * CHAOS_SENSITIVITY), (CHAOS_THRESHOLD), chaos_scale);
+    chaos_accumulation = util.clamp(chaos_accumulation, -1.0f, 1.0f);
     excitability += chaos_accumulation;
-	excitability = util.clamp(excitability, 0.1f, 2.0f);
+    excitability = util.clamp(excitability, 0.1f, 2.0f);
     F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
-	//std::cout << "Neuron " << neuron_id << " Firing Threshold: " << F_T << " activity: " << activity_record << " Neuron Availability: " << neuron_availability << " excitability: " << excitability << " chaos: " << chaos_accumulation << std::endl;
+    //	std::cout << "Neuron " << neuron_id << " Neuron input :  " << this->input << " Firing Threshold : " << F_T << " activity : " << activity_record << " Neuron Availability : " << neuron_availability << " excitability : " << excitability << " chaos : " << chaos_accumulation << std::endl;
     if (trace_firing > 0)
-    std::cout << "Neuron " << neuron_id << " trace_firing " << trace_firing << std::endl;
-   
+        std::cout << "Neuron " << neuron_id << " trace_firing " << trace_firing << std::endl;
+
 }
 
 
@@ -97,18 +100,18 @@ void Neurons::propagate() {
     for (int i = 0; i < C_S; ++i) {
         Connection* c = connect[i].get();
 
-        
+
         //c->to->input *= decay;
         c->weight = util.clamp(c->weight, -1, 1);
-        c->weight *= weight_decay;
-       // std::cout << "c : " << c->delay << std::endl;
+        c->weight *= util.exponantial_decay(dt, weight_decay);
+        // std::cout << "c : " << c->delay << std::endl;
         if (input != 0) {
-            c->to->sendSignal(input * c->weight, c->delay);
+            c->to->sendSignal((input * c->weight) * excitability, c->delay);
         }
-        
+
 
     }
-    
+
 }
 
 
@@ -118,17 +121,17 @@ void Neurons::STDP(Connection* c) {
     Neurons* to = c->to;
     float f_signal_T = from->trace_firing;
     float t_signal_T = to->trace_firing;
-  
 
 
-   
+
+
     float changes = 0;
-    if (t_signal_T < 1e-4f) {
+    if (t_signal_T < 1e-2f) {
         to->trace_firing = 0;
         t_signal_T = 0;
     }
 
-    if (f_signal_T < 1e-4f) {
+    if (f_signal_T < 1e-2f) {
         from->trace_firing = 0;
         f_signal_T = 0;
     }
@@ -138,17 +141,18 @@ void Neurons::STDP(Connection* c) {
     float coincidence = expf(-50.0f * d * d);
 
     changes =
-        (f_signal_T * t_signal_T) *
-        (tanhf(balance * d) + expf(-(d * d)) + coincidence) * learning_rate;
-   
+        ((f_signal_T * t_signal_T) *
+            (tanhf(balance * d) * expf(-(d * d)) + coincidence)) * learning_rate;
+
     if (changes != 0) {
-       std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
-                 << " weight_change: " << changes << " pre synaptic: " << f_signal_T << " post synaptic: " << t_signal_T << std::endl;
+        // std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
+           //        << " weight_change: " << changes << " pre synaptic: " << f_signal_T << " post synaptic: " << t_signal_T << std::endl;
     }
+    c->delay_scale += changes * 0.1f;
 
     c->weight += changes;
-    
-	
+
+
 }
 
 void Neurons::applySTDP() {
@@ -176,24 +180,25 @@ void Neurons::SpikeHandler(float t) {
 
 
     if (!signals_to_remove.empty()) {
-    //    std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
+        //    std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
         fire = firing_threshold(active_signal_sum, this);
     }
 
-   
-    if (fire && neuron_availability == 0) {
-		
+
+    if (fire && neuron_availability < 1e-4f) {
+
         this->current_RT = t;
-		std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
-		trace_firing += 1.f; // Update firing trace
+        std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
+        trace_firing += 1.f; // Update firing trace
         neuron_availability = neuron_availability_timer; // Reset availability after firing
-        input += 1;
-       
+        input += spike;
+
 
         for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
             signals.erase(signals.begin() + signals_to_remove[i]);
         }
-    } else {
+    }
+    else {
         for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
             signals.at(i)->signal *= signal_decay;
             if (signals.at(i)->signal == 0) {
@@ -229,7 +234,7 @@ float Neurons::getInput() {
 
 // Adaptive signal normalization
 float Neurons::applyAdaptiveNormalization(float incoming_signal) {
- 
+
     return incoming_signal * excitability;
 }
 
@@ -246,25 +251,26 @@ float Neurons::calculateSignalCoherence() {
     int received_signals = signals.size();
 
     // Calculate activity level from input magnitude
-	activity_record += std::abs(input) * a_r;
+    activity_record += std::abs(input) * a_r;
 
-    
+
     float activity_score = 1.0f;
 
     if (activity_record < ACTIVITY_OPTIMAL_MIN) {
         // Too silent - neuron is not receiving enough signal
         activity_score = activity_record / ACTIVITY_OPTIMAL_MIN;
-    } else if (activity_record > ACTIVITY_OPTIMAL_MAX) {
+    }
+    else if (activity_record > ACTIVITY_OPTIMAL_MAX) {
         // Too active - chaotic input, excessive stimulation
         activity_score = 1.0f - ((activity_record - ACTIVITY_OPTIMAL_MAX) / 2.0f);
         activity_score = std::max(activity_score, 0.0f);
     }
-    
+
     float signal_received_score = (received_signals > 0) ? 1.0f : 0.0f;
 
     // Combine scores: need both signal reception and optimal activity level
     float coherence = (activity_score * 0.7f + signal_received_score * 0.3f);
- 
+
     return std::min(std::max(coherence, 0.0f), 1.0f);
 }
 
@@ -275,4 +281,3 @@ void Neurons::createConnection() {
         }
     }
 }
- 

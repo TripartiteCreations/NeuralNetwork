@@ -25,7 +25,7 @@ public:
 
 				std::uniform_real_distribution<> distrib(0, 1);
 				float probability = distrib(gen);
-				if (probability < 0.5) { // 50% chance to connect
+				if (probability < 0.2) { // 50% chance to connect
 					
 					neurons[from].connectTo(&neurons[to], 0.5); // Connect with weight 0.5
 					visualizer.addConnection(from, to, 0.5);
