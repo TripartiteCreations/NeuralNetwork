@@ -6,7 +6,7 @@
 #include "Neurons.h"
 #include "GeneticAlgorithm.h"
 
-
+#include "NeuronHandler.h"
 
 int main()
 {
@@ -19,31 +19,11 @@ int main()
     SDL_Window* window = visualizer.getWindow();
 
     float time = 0;
-    std::vector<Neurons> neurons;
-    int num_neurons = 2;
-
-    // Create neurons
-    for (int i = 0; i < num_neurons; ++i) {
-        neurons.emplace_back();
-        visualizer.addNeuron(i);
-    }
+    int num_neurons = 4;
+    NeuronHandler neuronHandler(num_neurons, visualizer);
 
 
-
-
-    // Create network topology
-
-    neurons[0].connectTo(&neurons[1], 0.5);
-    visualizer.addConnection(0, 1, 0.5);
-
-   // neurons[1].connectTo(&neurons[2], 0.5);
-   // visualizer.addConnection(1, 2, 0.5);
-   // neurons[2].connectTo(&neurons[3], 0.5);
-   // visualizer.addConnection(2, 3, 0.5);
-   
-   // neurons[1].connectTo(&neurons[3], 0.5);
-   // visualizer.addConnection(1, 3, 0.5);
-  
+    neuronHandler.connectNeurons();
 
     int frame_count = 0;
     bool running = true;
@@ -63,12 +43,12 @@ int main()
                     // Get mouse position and check for neuron click
                     int neuron_idx = visualizer.checkNeuronClick(event.button.x, event.button.y);
 
-                    if (neuron_idx >= 0 && neuron_idx < static_cast<int>(neurons.size())) {
+                    if (neuron_idx >= 0 && neuron_idx < static_cast<int>(neuronHandler.neurons.size())) {
                         // Send signal to clicked neuron
-                        neurons[neuron_idx].sendSignal(1, 1);
+                        neuronHandler.neurons[neuron_idx].sendSignal(1, 1);
 
-                        std::cout << "Clicked Neuron " << neuron_idx 
-                                  << " - Sending signal 0.6f\n";
+                        std::cout << "Clicked Neuron " << neuron_idx
+                            << " - Sending signal 0.6f\n";
                     }
                 }
             }
@@ -78,12 +58,12 @@ int main()
         frame_count++;
 
 
-       // test stdp pos fire before pre
+        // test stdp pos fire before pre
         if (frame_count % 200 == 0) {
-            neurons[1].sendSignal(1.0f, 0.5f);  // Moderate signal
+            neuronHandler.neurons[1].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
         if (frame_count % 120 == 0) {
-            neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
+            neuronHandler.neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
 
 
@@ -98,24 +78,24 @@ int main()
         }
 
         // Update all neurons
-        for (int i = 0; i < neurons.size(); ++i) {
-           
-                neurons[i].update(time);
+        for (int i = 0; i < neuronHandler.neurons.size(); ++i) {
 
-                // Update visualizer with neuron data
-                visualizer.updateNeuronActivity(i, neurons[i].getInput());
+            neuronHandler.neurons[i].update(time);
 
-                // Update connection weights
-                auto& connections = neurons[i].connect;
-                for (std::size_t j = 0; j < connections.size(); ++j) {
-                    Connection* conn = connections[j].get();
-                    // Find connection index in visualizer
-                    for (int k = 0; k < num_neurons; ++k) {
-                        if (conn->to->neuron_id == k) {
-                            visualizer.updateConnectionWeight(i, k, conn->weight);
-                        }
+            // Update visualizer with neuron data
+            visualizer.updateNeuronActivity(i, neuronHandler.neurons[i].getInput());
+
+            // Update connection weights
+            auto& connections = neuronHandler.neurons[i].connect;
+            for (std::size_t j = 0; j < connections.size(); ++j) {
+                Connection* conn = connections[j].get();
+                // Find connection index in visualizer
+                for (int k = 0; k < num_neurons; ++k) {
+                    if (conn->to->neuron_id == k) {
+                        visualizer.updateConnectionWeight(i, k, conn->weight);
                     }
                 }
+            }
         }
 
         // Render
@@ -124,7 +104,7 @@ int main()
 
     }
 
-  
-    
+
+
     return 0;
 }
