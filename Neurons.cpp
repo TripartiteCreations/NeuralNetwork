@@ -4,12 +4,13 @@ static unsigned int neuron_counter = 0;
 
 Neurons::Neurons() {
     neuron_id = neuron_counter++;
+
 }
 
 
 
 void Neurons::connectTo(Neurons* n2, float weight) {
-   
+
     auto c = std::make_unique<Connection>();
     c->to = n2;
     c->from = this;
@@ -19,7 +20,7 @@ void Neurons::connectTo(Neurons* n2, float weight) {
 
     std::mt19937 gen(rd());
 
-  
+
     std::uniform_real_distribution<> distrib(10.0, 100.0);
 
     c->delay = distrib(gen);
@@ -35,7 +36,8 @@ void Neurons::sendSignal(float v, float d) {
     s->signal = v;
     s->delay = d;
     s->sent_T = simulation_time;
-   
+    s->sender = this;
+    //if (!firing_threshold(s->signal, this)) return;
     signals.push_back(std::move(s));
 
     //cout << signal.size() <<endl;
@@ -54,45 +56,40 @@ int Neurons::find_connection(Neurons* from, Neurons* to) {
 
 
 void Neurons::update(float t) {
+    dt = t - simulation_time;
     simulation_time = t;
     update_count++;
 
-    // Track recovery if neuron was dead
-    if (was_dead && isAlive()) {
-        frames_since_death++;
-        recovery_progress = std::min(recovery_progress + 0.01f, 1.0f);
-    }
-
     // Decay existing activity and input
-    this->activity_record *= a_r_d;
-    input *= decay;
+    this->activity_record *= util.exponantial_decay(dt, a_r_d);
+    this->excitability += util.exponantial_decay(dt, ex_decay) * (1.0f - excitability);
+    this->neuron_availability *= util.exponantial_decay(dt, n_availability_decay);
+    this->reward *= util.exponantial_decay(dt, reward_decay);
+    this->trace_firing *= util.exponantial_decay(dt, trace_decay); // Decay firing trace
+    this->chaos_decay *= util.exponantial_decay(dt, chaos_decay);
+    input *= util.exponantial_decay(dt, decay);
+
 
     float s = 0;
-    for (int i = 0; i < signals.size(); ++i) {
-        float delay = signals.at(i)->delay;
-        float st = signals.at(i)->sent_T;
 
-        s = signals.at(i)->signal;
-        float CRT = t - st;
 
-        if (CRT > delay) {
-            this->activity_record += a_r;
-            this->current_RT = t;
-
-            // Apply adaptive normalization to incoming signal
-            float adapted_signal = applyAdaptiveNormalization(s);
-
-            input += adapted_signal;
-            signals.erase(signals.begin() + i);
-            i--;
-        }
-    }
-
-    // Calculate signal coherence before propagating
-    float coherence = calculateSignalCoherence();
-    updateHealth(coherence);
-
+    SpikeHandler(t);
     propagate();
+    applySTDP();
+    // Calculate signal coherence before propagating
+    calculateSignalCoherence();
+    RewardHandler(reward, activity_record);
+    /// F_T = (1.0 - target_activity) + 1.0f * (0.5 - (1-excitability) - (1 - activity_record));
+    F_T = (target_activity)+1 * (0.5f - (1 - excitability) - (1 - (util.logistic_sigmoid(activity_record, (10), target_activity)))) + ((activity_record - target_activity) + std::abs(activity_record - target_activity)) / 2;
+    chaos_accumulation += util.logistic_sigmoid(activity_record, -((activity_record - CHAOS_THRESHOLD) * CHAOS_SENSITIVITY), (CHAOS_THRESHOLD), chaos_scale);
+    chaos_accumulation = util.clamp(chaos_accumulation, -1.0f, 1.0f);
+    excitability += chaos_accumulation;
+    excitability = util.clamp(excitability, 0.1f, 2.0f);
+    F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
+    //	std::cout << "Neuron " << neuron_id << " Neuron input :  " << this->input << " Firing Threshold : " << F_T << " activity : " << activity_record << " Neuron Availability : " << neuron_availability << " excitability : " << excitability << " chaos : " << chaos_accumulation << std::endl;
+    if (trace_firing > 0)
+        std::cout << "Neuron " << neuron_id << " trace_firing " << trace_firing << std::endl;
+
 }
 
 
@@ -104,18 +101,18 @@ void Neurons::propagate() {
     for (int i = 0; i < C_S; ++i) {
         Connection* c = connect[i].get();
 
-        STDP(c);
+
         //c->to->input *= decay;
         c->weight = util.clamp(c->weight, -1, 1);
-        c->weight *= weight_decay;
-       // std::cout << "c : " << c->delay << std::endl;
+        c->weight *= util.exponantial_decay(dt, weight_decay);
+        // std::cout << "c : " << c->delay << std::endl;
         if (input != 0) {
-            c->to->sendSignal(input * c->weight, c->delay);
+            c->to->sendSignal((input * c->weight) * excitability, c->delay);
         }
 
 
     }
-    
+
 }
 
 
@@ -123,50 +120,99 @@ void Neurons::propagate() {
 void Neurons::STDP(Connection* c) {
     Neurons* from = c->from;
     Neurons* to = c->to;
-    float f_signal_T = from->current_RT;
-    float t_signal_T = to->current_RT;
-    float spike_diff = t_signal_T - f_signal_T;
-
-    if (t_signal_T == 0) spike_diff = f_signal_T;
-
-    
-    float tau = 20.0f; // Time constant for STDP
-    float A_pos = 0.001f; // Positive learning rate
-    float A_neg = 0.001f; // Negative learning rate 
+    float f_signal_T = from->trace_firing;
+    float t_signal_T = to->trace_firing;
 
 
-    if (spike_diff >= 0) {
-        // Post-synaptic neuron fires after pre-synaptic
-        changes = A_pos * std::exp(-spike_diff / tau);
-    } else {
-        // Post-synaptic neuron fires before pre-synaptic
-        changes = -A_neg * std::exp(spike_diff / tau);
+
+
+    float changes = 0;
+    if (t_signal_T < 1e-2f) {
+        to->trace_firing = 0;
+        t_signal_T = 0;
     }
+
+    if (f_signal_T < 1e-2f) {
+        from->trace_firing = 0;
+        f_signal_T = 0;
+    }
+
+    float d = f_signal_T - t_signal_T;
+    float balance = -99;
+    float coincidence = expf(-50.0f * d * d);
+
+    changes =
+        ((f_signal_T * t_signal_T) *
+            (tanhf(balance * d) * expf(-(d * d)) + coincidence)) * learning_rate;
 
     if (changes != 0) {
-        std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
-                  << " spike_diff: " << spike_diff << " weight_change: " << changes << std::endl;
+        // std::cout << "Neuron " << from->neuron_id << " -> " << to->neuron_id 
+           //        << " weight_change: " << changes << " pre synaptic: " << f_signal_T << " post synaptic: " << t_signal_T << std::endl;
     }
+    c->delay += changes * 0.1f;
 
     c->weight += changes;
+
+
 }
 
-
-
-
-void Neurons::Hebbian(Connection* c) {
-    Neurons* from = c->from;
-    Neurons* to = c->to;
-    float f_signal_T = from->current_RT;
-    float t_signal_T = to->current_RT;
-    bool f_f = firing_threshold(from->input, from);
-    bool f_t = firing_threshold(to->input, to);
-    if (f_f && f_t) {
-        bool ts = (f_signal_T == t_signal_T);
-        if (ts) c->weight += 0.001f;
+void Neurons::applySTDP() {
+    for (auto& c : connect) {
+        STDP(c.get());
     }
-   
 }
+
+void Neurons::SpikeHandler(float t) {
+    bool fire = false;
+    float active_signal_sum = 0.0f;
+    std::vector<int> signals_to_remove;
+
+    for (int i = 0; i < signals.size(); ++i) {
+        float delay = signals.at(i)->delay;
+        float st = signals.at(i)->sent_T;
+        float CRT = t - st;
+
+        if (CRT > delay) {
+
+            active_signal_sum += signals.at(i)->signal;
+            signals_to_remove.push_back(i);
+        }
+    }
+
+
+    if (!signals_to_remove.empty()) {
+        //    std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
+        fire = firing_threshold(active_signal_sum, this);
+    }
+
+
+    if (fire && neuron_availability < 1e-4f) {
+
+        this->current_RT = t;
+        std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
+        trace_firing += 1.f; // Update firing trace
+        neuron_availability = neuron_availability_timer; // Reset availability after firing
+        input += spike;
+
+
+        for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
+            signals.erase(signals.begin() + signals_to_remove[i]);
+        }
+    }
+    else {
+        for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
+            signals.at(i)->signal *= signal_decay;
+            if (signals.at(i)->signal == 0) {
+                signals.erase(signals.begin() + signals_to_remove[i]);
+            }
+        }
+
+    }
+
+}
+
+
+
 
 
 bool Neurons::firing_threshold(float c_i, Neurons* n) {
@@ -185,55 +231,42 @@ float Neurons::getInput() {
     return this->input;
 }
 
-float Neurons::getHealth() const {
-    return health;
-}
 
-bool Neurons::isAlive() const {
-    return health > 0.0f;
-}
 
-float Neurons::getSignalSensitivity() const {
-    return signal_sensitivity;
-}
-
-float Neurons::getDeathCauseType() const {
-    return death_cause;
-}
-
-// Adaptive signal normalization based on what caused the neuron's death
-// Adaptive signal normalization (Homeostasis)
+// Adaptive signal normalization
 float Neurons::applyAdaptiveNormalization(float incoming_signal) {
-    // Proactively regulate the signal based on current sensitivity.
-    // If sensitivity > 1.0, it amplifies (neuron is understimulated).
-    // If sensitivity < 1.0, it dampens (neuron is overstimulated).
-    return incoming_signal * signal_sensitivity;
+
+    return incoming_signal * excitability;
+}
+
+void Neurons::RewardHandler(float reward, float coherence) {
+
+    excitability += util.logistic_sigmoid(coherence, (coherence - target_activity), target_activity, reward * r_r);
+
 }
 
 float Neurons::calculateSignalCoherence() {
-    // Measure coherence based on actual signal reception and activity level
-    // Neurons need signals to survive, but too much noise (chaos) kills them
+
 
     // Track how many signals this neuron received
     int received_signals = signals.size();
 
     // Calculate activity level from input magnitude
-    float activity_level = std::abs(input);
+    activity_record += std::abs(input) * a_r;
 
-    // Check if neuron is in "Goldilocks zone" - not too active, not too silent
+
     float activity_score = 1.0f;
 
-    if (activity_level < ACTIVITY_OPTIMAL_MIN) {
+    if (activity_record < ACTIVITY_OPTIMAL_MIN) {
         // Too silent - neuron is not receiving enough signal
-        activity_score = activity_level / ACTIVITY_OPTIMAL_MIN;
-    } else if (activity_level > ACTIVITY_OPTIMAL_MAX) {
+        activity_score = activity_record / ACTIVITY_OPTIMAL_MIN;
+    }
+    else if (activity_record > ACTIVITY_OPTIMAL_MAX) {
         // Too active - chaotic input, excessive stimulation
-        activity_score = 1.0f - ((activity_level - ACTIVITY_OPTIMAL_MAX) / 2.0f);
+        activity_score = 1.0f - ((activity_record - ACTIVITY_OPTIMAL_MAX) / 2.0f);
         activity_score = std::max(activity_score, 0.0f);
     }
-    // else: in optimal range, score stays at 1.0f
 
-    // Detection: are signals being received at all?
     float signal_received_score = (received_signals > 0) ? 1.0f : 0.0f;
 
     // Combine scores: need both signal reception and optimal activity level
@@ -242,77 +275,10 @@ float Neurons::calculateSignalCoherence() {
     return std::min(std::max(coherence, 0.0f), 1.0f);
 }
 
-
-void Neurons::updateHealth(float coherence) {
-    signal_consistency = coherence;
-
-    // Calculate current activity level
-    float activity_level = std::abs(input);
-
-    // Are we getting any stimulation at all?
-    bool receiving_signals = (signals.size() > 0) || (activity_level > 0.0f);
-
-    // --- 1. PROACTIVE REGULATION (HOMEOSTASIS) ---
-    // The neuron constantly tries to keep itself in the Goldilocks zone
-    if (receiving_signals) {
-        if (activity_level > ACTIVITY_OPTIMAL_MAX) {
-            // Overstimulated: Regulate by dampening incoming signals
-            signal_sensitivity = std::max(signal_sensitivity - SENSITIVITY_RECOVERY_RATE, MIN_SENSITIVITY);
+void Neurons::createConnection() {
+    for (auto& c : connect) {
+        if (this == c->to) {
+            std::cout << "Neuron " << neuron_id << " is connected to Neuron " << c->to->neuron_id << std::endl;
         }
-        else if (activity_level < ACTIVITY_OPTIMAL_MIN) {
-            // Understimulated: Regulate by amplifying incoming signals
-            signal_sensitivity = std::min(signal_sensitivity + SENSITIVITY_RECOVERY_RATE, MAX_SENSITIVITY);
-        }
-        else {
-            // Optimal: Gradually drift sensitivity back to normal (1.0)
-            if (signal_sensitivity > 1.01f) signal_sensitivity -= SENSITIVITY_RECOVERY_RATE * 0.5f;
-            else if (signal_sensitivity < 0.99f) signal_sensitivity += SENSITIVITY_RECOVERY_RATE * 0.5f;
-            else signal_sensitivity = 1.0f;
-        }
-    }
-
-    // --- 2. SURVIVAL & DEATH MECHANICS ---
-    if (!isAlive()) {
-        return; // The neuron is dead, stop updating health.
-    }
-
-    float extreme_chaos_threshold = ACTIVITY_OPTIMAL_MAX * 3.0f;
-
-    if (!receiving_signals && activity_level == 0.0f) {
-   
-        health = std::max(health - HEALTH_LOSS_SILENT, 0.0f);
-        if (health <= 0.0f) {
-            death_cause = -1.0f;
-            std::cout << " Neuron " << neuron_id << " DIED from TOTAL SILENCE\n";
-        }
-    }
-    else if (activity_level > extreme_chaos_threshold) {
-        // FATAL: Extreme Chaos (so high that dampening couldn't save it)
-        health = std::max(health - HEALTH_LOSS_CHAOS, 0.0f);
-        chaos_accumulation = std::min(chaos_accumulation + 0.05f, 1.0f);
-
-        if (health <= 0.0f) {
-            death_cause = 1.0f;
-            std::cout << " Neuron " << neuron_id << " DIED from EXTREME CHAOS\n";
-        }
-    }
-    else {
-        // SURVIVAL: Neuron is either in the optimal range or successfully regulating
-        health = std::min(health + HEALTH_GAIN_OPTIMAL, 1.0f);
-        chaos_accumulation = std::max(chaos_accumulation - 0.02f, 0.0f);
-    }
-
-    // Penalty for neurons with no outgoing connections (dead weight)
-    if (connect.empty() && update_count > 20) {
-        health *= 0.99f;
-    }
-
-    // Debug: log health changes periodically
-    if (update_count % 100 == 0 && update_count > 0) {
-        std::cout << "Neuron " << neuron_id
-            << " | Health: " << health
-            << " | Activity: " << activity_level
-            << " | Sensitivity: " << signal_sensitivity
-            << " | Status: " << (isAlive() ? "ALIVE" : "DEAD") << std::endl;
     }
 }

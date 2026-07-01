@@ -150,6 +150,7 @@
     <ClInclude Include="Connection.h" />
     <ClInclude Include="GraphVisualizer.h" />
     <ClInclude Include="NeuralNetworkVisualizer.h" />
+    <ClInclude Include="NeuronHandler.h" />
     <ClInclude Include="Neurons.h" />
     <ClInclude Include="Signal.h" />
     <ClInclude Include="utility.h" />

@@ -39,67 +39,74 @@ public:
 
 
     float getInput();
-    float getHealth() const;
-    bool isAlive() const;
-    void updateHealth(float coherence);
 
-    // Get adaptation state for visualization
-    float getSignalSensitivity() const;
-    float getDeathCauseType() const;  // Returns: 0 = normal, 1 = overstimulation, -1 = understimulation
 
-    float changes;
 
     // Unique identifier for each neuron
     unsigned int neuron_id;
 
 private:
     void STDP(Connection* c);
-    void Hebbian(Connection* c);
-    
+    void applySTDP();
+    void SpikeHandler(float t);
+    void RewardHandler(float reward, float coherence);
     float calculateSignalCoherence();
-    void applyEvolutionaryPressure(float coherence);
+    void createConnection();
+
     float applyAdaptiveNormalization(float incoming_signal);  // Adapt signal based on death cause
 
     float input = 0;
+    float spike = 0.7f;
+    float neuron_availability_timer = 0.6; // timer for neuron availability decay
+    float neuron_availability = 0; // neuron availability for firing
+    float n_availability_decay = 2.0f; // neuron availability decay rate
+
+    float base_amptitude = 0.8;
+    float reward = 0;
+    float r_r = 0.01f; //reward rate
+    float reward_decay = 20;
+    float signal_decay = 0.5; // incoming signal decay
+
+    float excitability = 1;
+    float ex_decay = 20;
+
+
 
     float simulation_time = 0;
     float current_RT = 0; // current receiving time of the current neuron
-    float decay = 0.5f;
-    float weight_decay = 0.99999; // w decay
+    float decay = 1;
+    float weight_decay = 10000; // w decay
 
     float time_decay = 0.1;
-    float F_T = 0.3f; //firing threshold
+    float F_T = 0.6f; //firing threshold
 
-    float a_r_d = 0.9; //activity record decay
-    float a_r = 0.1; // activity record increment per activation
     float activity_record = 0;
+    float a_r_d = 5000; //activity record decay
+    float a_r = 0.01; // activity record increment per activation
 
-    // Survival mechanism
-    float health = 0.5f; // Health ranges from 0 to 1, starts at 0.5f
+
+
     float signal_consistency = 0.0f; // Tracks consistency of incoming signals
-    float chaos_accumulation = 0.0f; // Accumulates chaos (noise)
+
     unsigned int update_count = 0; // Number of updates performed
-    float last_signal_magnitude = 0.0f; // Track received signal magnitude
-    float signal_reception_quality = 0.5f; // Quality of received signals
 
-    // Adaptive behavior tracking
-    float death_cause = 0.0f;  // 0 = normal, 1.0f = overstimulation, -1.0f = understimulation
-    float signal_sensitivity = 1.0f;  // How sensitive neuron is to incoming signals (1.0 = normal)
-    bool was_dead = false;  // Track if neuron has recovered from death
-    float recovery_progress = 0.0f;  // Progress towards full recovery (0-1)
-    int frames_since_death = 0;  // Frames since neuron died
+    float target_activity = 0.6f; // Target activity level for optimal neuron function
+    float learning_rate = 0.001f; // Learning rate for STDP adjustments
 
-    // Constants for survival - Goldilocks zone for activity
-    static constexpr float HEALTH_GAIN_OPTIMAL = 0.015f; // Health gain in optimal signal range
-    static constexpr float HEALTH_LOSS_CHAOS = 0.003f; // Health loss in chaotic signals
-    static constexpr float HEALTH_LOSS_SILENT = 0.0002f; // Health loss when no signals received
+    float chaos_accumulation = 0.0f; // Accumulates chaos (noise)
+    float chaos_scale = 0.001f; // Scale for chaos accumulation
+    float chaos_decay = 20;
+
+    float trace_firing = 0.0f; // Tracks recent firing events for STDP
+    float trace_decay = 20; // Decay rate for firing trace
     static constexpr float ACTIVITY_OPTIMAL_MIN = 0.2f; // Minimum optimal activity
     static constexpr float ACTIVITY_OPTIMAL_MAX = 0.8f; // Maximum optimal activity
-    static constexpr float CHAOS_THRESHOLD = 0.6f; // Threshold for chaos detection (high variance)
-
+    static constexpr float CHAOS_THRESHOLD = 0.9f; // Threshold for chaos detection (high variance)
+    float CHAOS_SENSITIVITY = 9999;
     // Adaptive behavior constants
     static constexpr float MAX_SENSITIVITY = 2.0f;  // Max signal amplification for understimulated neurons
     static constexpr float MIN_SENSITIVITY = 0.3f;  // Min signal dampening for overstimulated neurons
     static constexpr float SENSITIVITY_RECOVERY_RATE = 0.02f;  // Speed of recovery to normal sensitivity
+    float dt;
 };
 
