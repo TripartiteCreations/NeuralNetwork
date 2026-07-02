@@ -3,6 +3,7 @@
 #include <vector>
 #include "NeuralNetworkVisualizer.h"
 #include <random> 
+#include "utility.h"
 class NeuronHandler {
 public:
 	NeuronHandler(int num_neurons, NeuralNetworkVisualizer& visualizer) : num_neurons(num_neurons), visualizer(visualizer) {
@@ -17,18 +18,13 @@ public:
 
 			for (int to = 0; to < neurons.size(); ++to) {
 				if (from == to) continue; 
-				std::random_device rd;
-
-
-				std::mt19937 gen(rd());
-
-
-				std::uniform_real_distribution<> distrib(0, 1);
-				float probability = distrib(gen);
+				
+				float probability = util.random_float(0, 1);
+				float weight = util.random_float(0.1, 1.0); // Random weight between 0.1 and 1.0
 				if (probability < 0.2) { // 50% chance to connect
-					
-					neurons[from].connectTo(&neurons[to], 0.5); // Connect with weight 0.5
-					visualizer.addConnection(from, to, 0.5);
+					std::cout << "Connecting Neuron " << from << " to Neuron " << to << " with weight: " << weight << std::endl;
+					neurons[from].connectTo(&neurons[to], weight); // Connect with random weight
+					visualizer.addConnection(from, to, weight);
 				}
 			}
 
@@ -39,7 +35,7 @@ public:
 
 	}
 	
-
+	utility util;
 	std::vector<Neurons> neurons;
 	int num_neurons;
 	NeuralNetworkVisualizer& visualizer;

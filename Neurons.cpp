@@ -20,7 +20,7 @@ void Neurons::connectTo(Neurons* n2, float weight) {
     std::mt19937 gen(rd());
 
 
-    std::uniform_real_distribution<> distrib(10.0, 100.0);
+    std::uniform_real_distribution<> distrib(0.01, 1);
 
     c->delay = distrib(gen);
     connect.push_back(std::move(c));
@@ -54,8 +54,8 @@ int Neurons::find_connection(Neurons* from, Neurons* to) {
 
 
 
-void Neurons::update(float t) {
-    dt = t - simulation_time;
+void Neurons::update(float t, float dt) {
+    this->dt = dt;
     simulation_time = t;
     update_count++;
 
@@ -72,9 +72,12 @@ void Neurons::update(float t) {
     float s = 0;
 
 
-    SpikeHandler(t);
-    propagate();
+    float dif = input;
+   
+    SpikeHandler(simulation_time);
     applySTDP();
+    propagate();
+	dif = input - dif;
     // Calculate signal coherence before propagating
     calculateSignalCoherence();
     RewardHandler(reward, activity_record);
@@ -84,10 +87,10 @@ void Neurons::update(float t) {
     chaos_accumulation = util.clamp(chaos_accumulation, -1.0f, 1.0f);
     excitability += chaos_accumulation;
     excitability = util.clamp(excitability, 0.1f, 2.0f);
-    F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range   
-    //	std::cout << "Neuron " << neuron_id << " Neuron input :  " << this->input << " Firing Threshold : " << F_T << " activity : " << activity_record << " Neuron Availability : " << neuron_availability << " excitability : " << excitability << " chaos : " << chaos_accumulation << std::endl;
-    if (trace_firing > 0)
-        std::cout << "Neuron " << neuron_id << " trace_firing " << trace_firing << std::endl;
+    F_T = util.clamp(F_T, 0.1f, 1.0f); // Clamp F_T to a reasonable range 
+    if ((dif == 0)) return;
+   //	std::cout << "Neuron " << neuron_id << " Neuron input :  " << this->input << " Firing Threshold : " << F_T << " activity : " << activity_record << " Neuron Availability : " << neuron_availability << " excitability : " << excitability << " chaos : " << chaos_accumulation << std::endl;
+    
 
 }
 
@@ -96,7 +99,7 @@ void Neurons::update(float t) {
 void Neurons::propagate() {
     int C_S = connect.size();
 
-
+	
     for (int i = 0; i < C_S; ++i) {
         Connection* c = connect[i].get();
 
@@ -180,18 +183,19 @@ void Neurons::SpikeHandler(float t) {
 
 
     if (!signals_to_remove.empty()) {
-        //    std::cout << "Active Signal Sum: " << active_signal_sum << std::endl;
+        
         fire = firing_threshold(active_signal_sum, this);
+     //   std::cout << "Active Signal Sum: " << active_signal_sum  << "fire : " << fire << std::endl;
     }
 
 
     if (fire && neuron_availability < 1e-4f) {
 
         this->current_RT = t;
-        std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
+      // std::cout << "Neuron " << neuron_id << " fired at time: " << t << " with input: " << active_signal_sum << std::endl;
         trace_firing += 1.f; // Update firing trace
         neuron_availability = neuron_availability_timer; // Reset availability after firing
-        input += spike;
+        this->input += spike;
 
 
         for (int i = signals_to_remove.size() - 1; i >= 0; --i) {
@@ -240,7 +244,7 @@ float Neurons::applyAdaptiveNormalization(float incoming_signal) {
 
 void Neurons::RewardHandler(float reward, float coherence) {
 
-    excitability += util.logistic_sigmoid(coherence, (coherence - target_activity), target_activity, reward * r_r);
+    excitability += util.logistic_sigmoid(coherence, -(coherence - target_activity) * r_s, target_activity, reward * r_r);
 
 }
 
@@ -274,10 +278,28 @@ float Neurons::calculateSignalCoherence() {
     return std::min(std::max(coherence, 0.0f), 1.0f);
 }
 
-void Neurons::createConnection() {
-    for (auto& c : connect) {
-        if (this == c->to) {
-            std::cout << "Neuron " << neuron_id << " is connected to Neuron " << c->to->neuron_id << std::endl;
-        }
+void Neurons::connectionHandler(std::vector<Neurons*> n) {
+    int neuron = util.random_int(0, neuron_counter);
+    Neurons* ns = n[neuron_counter];
+    if (this->connect.empty()) {
+        
+
+        float weight = util.random_float(-1, 1);
+        
+        float probability = util.random_float(0, 1) + util.logistic_sigmoid(ns->activity_record, -(ns->activity_record - ns->target_activity) * 99, ns->target_activity, ns->activity_record * 2);
+        if (this->neuron_id == neuron_counter) return;
+        if (probability > this->NoConnectionProbability) return;
+        this->connectTo(n[neuron], weight);
+        return;
     }
+
+    for (auto& c : connect) {
+        float weight = util.random_float(-1, 1);
+        
+        this->connectTo(c->to, weight);
+    }
+}
+
+bool Neurons::isSpiked() {
+    return firing_threshold(this->input, this);
 }

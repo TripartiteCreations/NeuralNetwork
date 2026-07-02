@@ -17,6 +17,20 @@ public :
     float exponantial_decay(float dt, float tau) {
         return std::expf(-dt / tau);
 	}
+    float random_int(int min, int max) {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> distrib(min, max);
+        return distrib(gen);
+    }
+
+    float random_float(int min, int max) {
+        std::random_device ra;
+        std::mt19937 ge(ra());
+        std::uniform_real_distribution<> dist(0, 1);
+        
+        return dist(ge);
+    }
 
 };
 

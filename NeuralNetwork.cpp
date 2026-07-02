@@ -5,7 +5,7 @@
 #include "NeuralNetworkVisualizer.h"
 #include "Neurons.h"
 #include "GeneticAlgorithm.h"
-
+#include <chrono>
 #include "NeuronHandler.h"
 
 int main()
@@ -17,8 +17,9 @@ int main()
     // Initialize visualizer
     NeuralNetworkVisualizer visualizer(1200, 800);
     SDL_Window* window = visualizer.getWindow();
-
-    float time = 0;
+    auto time = std::chrono::steady_clock::now();
+    float deltaTime=0;
+    float accumulated = 0;
     int num_neurons = 4;
     NeuronHandler neuronHandler(num_neurons, visualizer);
 
@@ -54,16 +55,21 @@ int main()
             }
         }
 
-        time += 1.f;
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> elapsedTime = currentTime - time;
+        deltaTime = elapsedTime.count(); // float representing seconds
+        
+        accumulated += deltaTime;
+        time = currentTime;
         frame_count++;
 
 
         // test stdp pos fire before pre
         if (frame_count % 200 == 0) {
-            neuronHandler.neurons[1].sendSignal(1.0f, 0.5f);  // Moderate signal
+           // neuronHandler.neurons[1].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
         if (frame_count % 120 == 0) {
-            neuronHandler.neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
+          //  neuronHandler.neurons[0].sendSignal(1.0f, 0.5f);  // Moderate signal
         }
 
 
@@ -80,7 +86,7 @@ int main()
         // Update all neurons
         for (int i = 0; i < neuronHandler.neurons.size(); ++i) {
 
-            neuronHandler.neurons[i].update(time);
+            neuronHandler.neurons[i].update(accumulated, deltaTime);
 
             // Update visualizer with neuron data
             visualizer.updateNeuronActivity(i, neuronHandler.neurons[i].getInput());
